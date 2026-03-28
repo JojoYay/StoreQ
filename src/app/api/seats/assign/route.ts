@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminMessaging } from "@/lib/firebase/admin";
 import { findBestSeat } from "@/lib/algorithms/seatAssignment";
-import { Timestamp, FieldValue } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import type { Seat, QueueEntry } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const { storeId, queueId } = await req.json();
+    // seatId が指定されている場合はその席を直接使用（管理者が手動選択）
+    // seatId が未指定の場合はアルゴリズムで最適席を自動選択
+    const { storeId, queueId, seatId: requestedSeatId } = await req.json();
 
     if (!storeId || !queueId) {
       return NextResponse.json({ error: "storeId と queueId は必須です" }, { status: 400 });
     }
 
-    // Fetch queue entry
+    // キューエントリ取得
     const queueRef = adminDb.collection("queues").doc(queueId);
     const queueSnap = await queueRef.get();
     if (!queueSnap.exists) {
@@ -20,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
     const queueEntry = { id: queueSnap.id, ...queueSnap.data() } as QueueEntry;
 
-    // Fetch available seats
+    // 空席一覧取得
     const seatsSnap = await adminDb
       .collection("stores")
       .doc(storeId)
@@ -31,19 +33,33 @@ export async function POST(req: NextRequest) {
       (d) => ({ id: d.id, ...d.data() } as Seat)
     );
 
-    // Fetch queue ahead for algorithm context
-    const queueAheadSnap = await adminDb
-      .collection("queues")
-      .where("storeId", "==", storeId)
-      .where("status", "==", "waiting")
-      .orderBy("joinedAt", "asc")
-      .get();
-    const queueAhead = queueAheadSnap.docs.map(
-      (d) => ({ id: d.id, ...d.data() } as QueueEntry
-    ));
+    // 割り当て席の決定
+    let result: { seatId: string; label: string; score: number } | null = null;
 
-    // Run algorithm
-    const result = findBestSeat(queueEntry.partySize, availableSeats, queueAhead);
+    if (requestedSeatId) {
+      // 管理者が指定した席を使用
+      const requestedSeat = availableSeats.find((s) => s.id === requestedSeatId);
+      if (!requestedSeat) {
+        return NextResponse.json(
+          { error: "指定された席が見つからないか、すでに使用中です" },
+          { status: 409 }
+        );
+      }
+      result = { seatId: requestedSeat.id, label: requestedSeat.label, score: 100 };
+    } else {
+      // アルゴリズムで最適席を自動選択
+      const queueAheadSnap = await adminDb
+        .collection("queues")
+        .where("storeId", "==", storeId)
+        .where("status", "==", "waiting")
+        .orderBy("joinedAt", "asc")
+        .get();
+      const queueAhead = queueAheadSnap.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as QueueEntry)
+      );
+      result = findBestSeat(queueEntry.partySize, availableSeats, queueAhead);
+    }
+
     if (!result) {
       return NextResponse.json(
         { error: "適切な席が見つかりませんでした。席が空くまでお待ちください。" },
@@ -51,7 +67,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Atomic write: update queue entry + seat status
+    // バッチ書き込み: キュー更新 + 席を reserved に
     const batch = adminDb.batch();
     const now = Timestamp.now();
 
@@ -75,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     await batch.commit();
 
-    // Send FCM notification if token exists
+    // FCM プッシュ通知（トークンがある場合のみ）
     if (queueEntry.fcmToken) {
       const statusUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/status/${queueId}`;
       try {
@@ -86,12 +102,9 @@ export async function POST(req: NextRequest) {
             body: `${result.label} にお進みください`,
           },
           data: { statusUrl },
-          webpush: {
-            fcmOptions: { link: statusUrl },
-          },
+          webpush: { fcmOptions: { link: statusUrl } },
         });
       } catch (fcmError) {
-        // FCM failure should not fail the whole request
         console.error("FCM send failed:", fcmError);
       }
     }

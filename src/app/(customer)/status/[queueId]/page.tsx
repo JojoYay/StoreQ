@@ -13,7 +13,6 @@ export default function StatusPage() {
   const [entry, setEntry] = useState<QueueEntry | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [queuePosition, setQueuePosition] = useState(1);
-  const [queueAheadLength, setQueueAheadLength] = useState(0);
   const [loading, setLoading] = useState(true);
   const { foregroundMessage } = useNotification();
 
@@ -33,25 +32,12 @@ export default function StatusPage() {
     const unsub = subscribeToQueue(entry.storeId, ["waiting"], (queue) => {
       const pos = queue.findIndex((q) => q.id === queueId);
       setQueuePosition(pos >= 0 ? pos + 1 : queue.length + 1);
-      setQueueAheadLength(queue.length);
     });
     return unsub;
   }, [entry?.storeId, queueId]);
 
-  // Show in-app notification toast
-  useEffect(() => {
-    if ((foregroundMessage as { notification?: { title?: string } })?.notification?.title) {
-      // Browser notification is handled by NotificationContext
-      // The status card will auto-update via Firestore subscription
-    }
-  }, [foregroundMessage]);
-
-  async function handleConfirmSeated() {
-    await updateQueueEntry(queueId, {
-      status: "seated",
-      seatedAt: Timestamp.now(),
-    });
-  }
+  // フォアグラウンド通知はステータスカードが Firestore リアルタイムで自動更新
+  void foregroundMessage;
 
   async function handleCancel() {
     if (!confirm("順番待ちをキャンセルしますか？")) return;
@@ -96,7 +82,6 @@ export default function StatusPage() {
           entry={entry}
           queuePosition={queuePosition}
           waitMinutes={waitMinutes}
-          onConfirmSeated={handleConfirmSeated}
           onCancel={handleCancel}
         />
       </div>

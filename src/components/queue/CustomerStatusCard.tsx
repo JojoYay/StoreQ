@@ -9,7 +9,6 @@ interface CustomerStatusCardProps {
   entry: QueueEntry;
   queuePosition: number;
   waitMinutes: number;
-  onConfirmSeated: () => void;
   onCancel: () => void;
 }
 
@@ -17,7 +16,6 @@ export function CustomerStatusCard({
   entry,
   queuePosition,
   waitMinutes,
-  onConfirmSeated,
   onCancel,
 }: CustomerStatusCardProps) {
   const [countdown, setCountdown] = useState(0);
@@ -30,6 +28,7 @@ export function CustomerStatusCard({
     return () => clearInterval(id);
   }, [entry.status, entry.expiresAt]);
 
+  // ── 着席完了 ──────────────────────────────────────
   if (entry.status === "seated") {
     return (
       <div className="text-center space-y-4">
@@ -41,6 +40,7 @@ export function CustomerStatusCard({
     );
   }
 
+  // ── キャンセル・期限切れ ──────────────────────────
   if (entry.status === "cancelled" || entry.status === "expired") {
     return (
       <div className="text-center space-y-4">
@@ -50,7 +50,7 @@ export function CustomerStatusCard({
         </h2>
         <p className="text-gray-500 text-sm">
           {entry.status === "expired"
-            ? "案内時間内に確認されなかったため、キャンセルされました"
+            ? "案内時間内にご来席が確認できなかったため、キャンセルされました"
             : "順番待ちをキャンセルしました"}
         </p>
         <Link
@@ -63,16 +63,20 @@ export function CustomerStatusCard({
     );
   }
 
+  // ── 席が案内された (notified) ─────────────────────
+  // ※ 着席の確認はスタッフが行います。お客様の操作は不要です。
   if (entry.status === "notified") {
     return (
       <div className="text-center space-y-5">
         <div className="text-7xl animate-bounce">🔔</div>
         <h2 className="text-2xl font-bold text-indigo-600">席の準備ができました！</h2>
+
         <div className="bg-indigo-50 rounded-xl p-5">
           <p className="text-3xl font-bold text-indigo-700">{entry.assignedSeatLabel}</p>
           <p className="text-indigo-500 text-sm mt-1">にお進みください</p>
         </div>
 
+        {/* 案内有効期限カウントダウン */}
         <div className="text-center">
           <p className="text-xs text-gray-400">案内の有効時間</p>
           <p className={`text-2xl font-mono font-bold mt-1 ${countdown < 60 ? "text-red-500" : "text-gray-700"}`}>
@@ -80,15 +84,17 @@ export function CustomerStatusCard({
           </p>
         </div>
 
-        <button
-          onClick={onConfirmSeated}
-          className="w-full bg-green-600 text-white py-4 rounded-xl font-medium text-base hover:bg-green-700 transition-colors"
-        >
-          着席しました
-        </button>
+        {/* スタッフが着席確認する旨を案内 */}
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+          <p className="font-medium">🪑 席にお座りください</p>
+          <p className="mt-1 text-green-600 text-xs">
+            スタッフが着席を確認します。操作は不要です。
+          </p>
+        </div>
+
         <button
           onClick={onCancel}
-          className="w-full text-sm text-gray-400 hover:text-gray-600"
+          className="w-full text-sm text-gray-400 hover:text-gray-600 py-2"
         >
           キャンセルする
         </button>
@@ -96,7 +102,7 @@ export function CustomerStatusCard({
     );
   }
 
-  // waiting
+  // ── 待機中 (waiting) ──────────────────────────────
   return (
     <div className="space-y-5">
       <div className="text-center">
