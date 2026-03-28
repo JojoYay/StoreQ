@@ -5,7 +5,7 @@ import type { Seat, SeatTool } from "@/lib/types";
 const GRID = 20;
 const SEAT_W = 80;
 const SEAT_H = 60;
-const RESIZE_HIT = 24; // リサイズハンドルのヒット領域 (px) ─ モバイルでも押しやすい大きさ
+const RESIZE_HIT = 24;
 const MIN_SIZE = 40;
 const MAX_W = 400;
 const MAX_H = 300;
@@ -20,11 +20,12 @@ const STATUS_COLORS: Record<Seat["status"], string> = {
 interface MapCanvasProps {
   seats: Seat[];
   activeTool: SeatTool;
-  selectedSeatId: string | null;
+  selectedSeatIds: string[];
   onSeatAdd: (seat: Omit<Seat, "createdAt" | "occupiedSince" | "estimatedFreeAt">) => void;
   onSeatMove: (id: string, position: { x: number; y: number }) => void;
   onSeatResize: (id: string, size: { width: number; height: number }) => void;
-  onSeatSelect: (id: string | null) => void;
+  /** 席クリック: addToSelection=true のとき選択に追加/除去、false のとき単独選択 */
+  onSeatClick: (id: string | null, addToSelection: boolean) => void;
   onSeatDoubleClick: (id: string) => void;
 }
 
@@ -44,33 +45,31 @@ interface DragState {
 function snap(v: number) {
   return Math.round(v / GRID) * GRID;
 }
-
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
-
-/** 右下コーナーのリサイズ判定 */
 function isInResizeHandle(seat: Seat, x: number, y: number): boolean {
   const rx = seat.position.x + seat.size.width - RESIZE_HIT;
   const ry = seat.position.y + seat.size.height - RESIZE_HIT;
-  return x >= rx && y >= ry &&
+  return (
+    x >= rx && y >= ry &&
     x <= seat.position.x + seat.size.width &&
-    y <= seat.position.y + seat.size.height;
+    y <= seat.position.y + seat.size.height
+  );
 }
 
 export function MapCanvas({
   seats,
   activeTool,
-  selectedSeatId,
+  selectedSeatIds,
   onSeatAdd,
   onSeatMove,
   onSeatResize,
-  onSeatSelect,
+  onSeatClick,
   onSeatDoubleClick,
 }: MapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<DragState | null>(null);
-  // ダブルタップ検出用
   const lastTap = useRef<{ id: string; time: number } | null>(null);
 
   // ── 描画 ──────────────────────────────────────────────────
@@ -97,7 +96,8 @@ export function MapCanvas({
       const { x, y } = seat.position;
       const w = seat.size.width;
       const h = seat.size.height;
-      const isSelected = seat.id === selectedSeatId;
+      const isSelected = selectedSeatIds.includes(seat.id);
+      const isMergeMode = activeTool === "merge";
 
       // 影
       ctx.shadowColor = "rgba(0,0,0,0.12)";
@@ -111,11 +111,33 @@ export function MapCanvas({
 
       // 枠
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = isSelected ? "#4f46e5" : "rgba(0,0,0,0.15)";
-      ctx.lineWidth = isSelected ? 2.5 : 1;
+      if (isSelected && isMergeMode) {
+        ctx.strokeStyle = "#f97316"; // オレンジ（結合モード選択中）
+        ctx.lineWidth = 2.5;
+      } else if (isSelected) {
+        ctx.strokeStyle = "#4f46e5"; // インジゴ（通常選択）
+        ctx.lineWidth = 2.5;
+      } else {
+        ctx.strokeStyle = "rgba(0,0,0,0.15)";
+        ctx.lineWidth = 1;
+      }
       ctx.beginPath();
       ctx.roundRect(x, y, w, h, 8);
       ctx.stroke();
+
+      // 結合モード中の選択バッジ
+      if (isSelected && isMergeMode) {
+        const idx = selectedSeatIds.indexOf(seat.id) + 1;
+        ctx.fillStyle = "#f97316";
+        ctx.beginPath();
+        ctx.arc(x + w - 10, y + 10, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(idx), x + w - 10, y + 10);
+      }
 
       // テキスト
       ctx.fillStyle = "#fff";
@@ -126,18 +148,14 @@ export function MapCanvas({
       ctx.font = "10px sans-serif";
       ctx.fillText(`${seat.capacity}名`, x + w / 2, y + h / 2 + 8);
 
-      // ── リサイズハンドル (選択中のみ) ──────────────────
-      if (isSelected) {
+      // リサイズハンドル（select モードで単独選択中のみ）
+      if (isSelected && !isMergeMode && selectedSeatIds.length === 1) {
         const hx = x + w - 14;
         const hy = y + h - 14;
-
-        // ハンドル背景
         ctx.fillStyle = "#4f46e5";
         ctx.beginPath();
         ctx.roundRect(hx, hy, 12, 12, 3);
         ctx.fill();
-
-        // グリップ線 (斜め3本)
         ctx.strokeStyle = "rgba(255,255,255,0.85)";
         ctx.lineWidth = 1.5;
         for (let i = 0; i < 3; i++) {
@@ -149,14 +167,13 @@ export function MapCanvas({
         }
       }
     });
-  }, [seats, selectedSeatId]);
+  }, [seats, selectedSeatIds, activeTool]);
 
   useEffect(() => { draw(); }, [draw]);
 
   // ── 座標変換 ──────────────────────────────────────────────
   function canvasXY(clientX: number, clientY: number) {
     const rect = canvasRef.current!.getBoundingClientRect();
-    // canvas の CSS サイズと内部解像度が違う場合に対応
     const scaleX = canvasRef.current!.width / rect.width;
     const scaleY = canvasRef.current!.height / rect.height;
     return {
@@ -168,8 +185,10 @@ export function MapCanvas({
   function getSeatAt(x: number, y: number): Seat | null {
     for (let i = seats.length - 1; i >= 0; i--) {
       const s = seats[i];
-      if (x >= s.position.x && x <= s.position.x + s.size.width &&
-          y >= s.position.y && y <= s.position.y + s.size.height) {
+      if (
+        x >= s.position.x && x <= s.position.x + s.size.width &&
+        y >= s.position.y && y <= s.position.y + s.size.height
+      ) {
         return s;
       }
     }
@@ -181,21 +200,32 @@ export function MapCanvas({
     const { x, y } = canvasXY(e.clientX, e.clientY);
     const seat = getSeatAt(x, y);
 
+    if (activeTool === "merge") {
+      // 結合モード: クリックでトグル選択（ドラッグなし）
+      if (seat) onSeatClick(seat.id, true);
+      else onSeatClick(null, false);
+      return;
+    }
+
     if (activeTool === "select") {
       if (seat) {
-        onSeatSelect(seat.id);
-        const mode: DragMode =
-          (seat.id === selectedSeatId && isInResizeHandle(seat, x, y))
-            ? "resize"
-            : "move";
-        drag.current = {
-          id: seat.id, mode,
-          startX: x, startY: y,
-          origX: seat.position.x, origY: seat.position.y,
-          origW: seat.size.width, origH: seat.size.height,
-        };
+        const addToSelection = e.shiftKey;
+        onSeatClick(seat.id, addToSelection);
+        if (!addToSelection) {
+          // ドラッグ開始（移動 or リサイズ）
+          const alreadySelected =
+            selectedSeatIds.includes(seat.id) && selectedSeatIds.length === 1;
+          const mode: DragMode =
+            alreadySelected && isInResizeHandle(seat, x, y) ? "resize" : "move";
+          drag.current = {
+            id: seat.id, mode,
+            startX: x, startY: y,
+            origX: seat.position.x, origY: seat.position.y,
+            origW: seat.size.width, origH: seat.size.height,
+          };
+        }
       } else {
-        onSeatSelect(null);
+        onSeatClick(null, false);
       }
     } else {
       addSeat(x, y);
@@ -211,6 +241,7 @@ export function MapCanvas({
   function handleMouseUp() { drag.current = null; }
 
   function handleDblClick(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (activeTool !== "select") return;
     const { x, y } = canvasXY(e.clientX, e.clientY);
     const seat = getSeatAt(x, y);
     if (seat) onSeatDoubleClick(seat.id);
@@ -223,9 +254,16 @@ export function MapCanvas({
     const { x, y } = canvasXY(t.clientX, t.clientY);
     const seat = getSeatAt(x, y);
 
+    if (activeTool === "merge") {
+      if (seat) onSeatClick(seat.id, true);
+      else onSeatClick(null, false);
+      e.preventDefault();
+      return;
+    }
+
     if (activeTool === "select") {
       if (seat) {
-        onSeatSelect(seat.id);
+        onSeatClick(seat.id, false);
 
         // ダブルタップ検出
         const now = Date.now();
@@ -236,19 +274,19 @@ export function MapCanvas({
         }
         lastTap.current = { id: seat.id, time: now };
 
+        const alreadySelected =
+          selectedSeatIds.includes(seat.id) && selectedSeatIds.length === 1;
         const mode: DragMode =
-          (seat.id === selectedSeatId && isInResizeHandle(seat, x, y))
-            ? "resize"
-            : "move";
+          alreadySelected && isInResizeHandle(seat, x, y) ? "resize" : "move";
         drag.current = {
           id: seat.id, mode,
           startX: x, startY: y,
           origX: seat.position.x, origY: seat.position.y,
           origW: seat.size.width, origH: seat.size.height,
         };
-        e.preventDefault(); // スクロール防止
+        e.preventDefault();
       } else {
-        onSeatSelect(null);
+        onSeatClick(null, false);
       }
     } else {
       addSeat(x, y);
@@ -315,7 +353,9 @@ export function MapCanvas({
       ref={canvasRef}
       width={900}
       height={600}
-      className="bg-white rounded-lg cursor-crosshair touch-none"
+      className={`bg-white rounded-lg touch-none ${
+        activeTool === "merge" ? "cursor-pointer" : "cursor-crosshair"
+      }`}
       style={{ maxWidth: "100%" }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

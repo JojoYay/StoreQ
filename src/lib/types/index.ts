@@ -74,4 +74,4 @@ export interface SeatAssignmentResult {
   score: number;
 }
 
-export type SeatTool = "select" | "addTable" | "addBar" | "addBooth";
+export type SeatTool = "select" | "addTable" | "addBar" | "addBooth" | "merge";
