@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useSeats } from "@/lib/hooks/useSeats";
 import { useQueue } from "@/lib/hooks/useQueue";
+import { useStore } from "@/lib/hooks/useStore";
 import { updateSeat } from "@/lib/firebase/firestore";
 import { OccupancyMeter } from "@/components/admin/OccupancyMeter";
 import { Timestamp } from "firebase/firestore";
@@ -37,24 +38,30 @@ function useElapsed(since: Timestamp | null): string {
 function SeatCard({
   seat,
   storeId,
+  avgDuration,
   onRelease,
   onOccupy,
 }: {
   seat: Seat;
   storeId: string;
+  avgDuration: number; // 店舗の平均滞在時間（分）
   onRelease: (seat: Seat) => void;
   onOccupy: (seat: Seat) => void;
 }) {
   const elapsed = useElapsed(seat.occupiedSince ?? null);
 
-  // 経過時間に応じた色（平均60分想定）
   const elapsedMins = seat.occupiedSince
     ? Math.floor((Date.now() - seat.occupiedSince.toMillis()) / 60000)
     : 0;
+
+  // 平均滞在時間の 1.5倍 → 黄色、2倍超 → 赤
+  const threshold1 = avgDuration * 1.5;
+  const threshold2 = avgDuration * 2;
   const elapsedColor =
-    elapsedMins >= 90 ? "text-red-600" :
-    elapsedMins >= 60 ? "text-orange-500" :
+    elapsedMins >= threshold2 ? "text-red-600" :
+    elapsedMins >= threshold1 ? "text-orange-500" :
     "text-gray-500";
+  const isLong = elapsedMins >= threshold1;
 
   if (seat.status === "occupied") {
     return (
@@ -74,13 +81,19 @@ function SeatCard({
 
         {/* 経過時間 */}
         {elapsed && (
-          <div className="bg-gray-50 rounded-lg px-3 py-2">
+          <div className={`rounded-lg px-3 py-2 ${isLong ? "bg-orange-50" : "bg-gray-50"}`}>
             <p className="text-xs text-gray-400">着席から</p>
             <p className={`text-base font-bold tabular-nums ${elapsedColor}`}>
               {elapsed}
-              {elapsedMins >= 60 && (
-                <span className="text-xs font-normal ml-1 text-orange-400">長時間</span>
+              {elapsedMins >= threshold2 && (
+                <span className="text-xs font-normal ml-1">⚠️ 超過</span>
               )}
+              {elapsedMins >= threshold1 && elapsedMins < threshold2 && (
+                <span className="text-xs font-normal ml-1">もうすぐ</span>
+              )}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              平均 {avgDuration}分 / 上限目安 {Math.round(threshold2)}分
             </p>
           </div>
         )}
@@ -169,6 +182,8 @@ export default function StoreDetailPage() {
   const { storeId } = useParams<{ storeId: string }>();
   const { seats, available, occupied, loading: seatsLoading } = useSeats(storeId);
   const { queue } = useQueue(storeId);
+  const { store } = useStore(storeId);
+  const avgDuration = store?.averageSeatingDuration ?? 60;
 
   // 席を空席に解放
   async function handleRelease(seat: Seat) {
@@ -196,12 +211,12 @@ export default function StoreDetailPage() {
     );
   }
 
-  // 長時間着席中の席（60分超）
+  // 平均の1.5倍を超えている席数
   const longStayCount = seats.filter(
     (s) =>
       s.status === "occupied" &&
       s.occupiedSince &&
-      Date.now() - s.occupiedSince.toMillis() > 60 * 60 * 1000
+      Date.now() - s.occupiedSince.toMillis() > avgDuration * 1.5 * 60 * 1000
   ).length;
 
   return (
@@ -250,7 +265,9 @@ export default function StoreDetailPage() {
           {longStayCount > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
               <p className="font-semibold">⚠️ 長時間着席</p>
-              <p className="mt-0.5">{longStayCount}席が60分を超えています</p>
+              <p className="mt-0.5">
+                {longStayCount}席が平均の1.5倍（{Math.round(avgDuration * 1.5)}分）を超えています
+              </p>
             </div>
           )}
 
@@ -305,6 +322,7 @@ export default function StoreDetailPage() {
                     key={seat.id}
                     seat={seat}
                     storeId={storeId}
+                    avgDuration={avgDuration}
                     onRelease={handleRelease}
                     onOccupy={handleOccupy}
                   />
