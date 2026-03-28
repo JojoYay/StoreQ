@@ -1,0 +1,58 @@
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  concurrency: 80
+  minInstances: 0
+  maxInstances: 10
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyDUkbj-_OoqFGmwOeh-jWuHUrsTI4Zurf0
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: storeq-9f4ba.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: storeq-9f4ba
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: storeq-9f4ba.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "897527048931"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:897527048931:web:c3f2ef4e0a3d1ee00733d6
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    value: ZaMWMbtKaEDafuviDekGnv5EVGdQBS2q7W-yb9E-328
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://storeq-9f4ba.web.app
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: FIREBASE_SERVICE_ACCOUNT_KEY
+    secret: FIREBASE_SERVICE_ACCOUNT_KEY
