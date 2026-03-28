@@ -37,11 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       setLoading(false);
       if (u) {
-        await ensureAdminDoc(
-          u.uid,
-          u.email ?? "",
-          u.displayName ?? u.email ?? ""
-        );
+        try {
+          await ensureAdminDoc(u.uid, u.email ?? "", u.displayName ?? u.email ?? "");
+        } catch {
+          // Firestore書き込み失敗は無視
+        }
       }
     });
     return unsub;

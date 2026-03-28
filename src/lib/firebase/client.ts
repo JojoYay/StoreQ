@@ -16,7 +16,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// firebase/messaging は動的インポートでブラウザ環境のみロード
+// firebase/messaging はブラウザ専用のため動的インポート
 export const getFirebaseMessaging = async () => {
   if (typeof window === "undefined") return null;
   const { getMessaging, isSupported } = await import("firebase/messaging");

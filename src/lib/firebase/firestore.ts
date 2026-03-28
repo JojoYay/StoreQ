@@ -5,7 +5,6 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy,
@@ -59,7 +58,6 @@ export async function createStore(
   };
   await setDoc(ref, store);
 
-  // Add storeId to admin's storeIds
   const adminRef = doc(db, "admins", adminUid);
   const adminSnap = await getDoc(adminRef);
   if (adminSnap.exists()) {
@@ -89,17 +87,14 @@ export async function saveSeats(
   const batch = writeBatch(db);
   const ref = seatsRef(storeId);
 
-  // Delete existing seats
   const existing = await getDocs(ref);
   existing.docs.forEach((d) => batch.delete(d.ref));
 
-  // Write new seats
   seats.forEach((seat) => {
     const seatRef = doc(ref, seat.id);
     batch.set(seatRef, { ...seat, createdAt: serverTimestamp() });
   });
 
-  // Update total capacity
   const totalCapacity = seats.reduce((sum, s) => sum + s.capacity, 0);
   batch.update(storeRef(storeId), {
     totalCapacity,
@@ -138,7 +133,7 @@ export async function createQueueEntry(
 ): Promise<string> {
   const ref = doc(collection(db, "queues"));
   const now = Timestamp.now();
-  const expiresAt = Timestamp.fromMillis(now.toMillis() + 2 * 60 * 60 * 1000); // 2h
+  const expiresAt = Timestamp.fromMillis(now.toMillis() + 2 * 60 * 60 * 1000);
   await setDoc(ref, {
     ...data,
     joinedAt: serverTimestamp(),
