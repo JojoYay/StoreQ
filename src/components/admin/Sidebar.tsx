@@ -3,21 +3,36 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
-
-const navItems = [
-  { href: "/dashboard", label: "ダッシュボード", icon: "📊" },
-  { href: "/stores", label: "店舗一覧", icon: "🏪" },
-];
+import { useSelectedStore } from "@/contexts/SelectedStoreContext";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { stores, selectedStore, setSelectedStoreId, loading } = useSelectedStore();
 
   async function handleSignOut() {
     await signOut();
     router.replace("/login");
+  }
+
+  // 店舗固有のナビゲーション
+  const storeNavItems = selectedStore
+    ? [
+        { href: `/stores/${selectedStore.id}`, label: "フロア管理", icon: "🪑" },
+        { href: `/queue/${selectedStore.id}`, label: "キュー管理", icon: "📋" },
+        { href: `/stores/${selectedStore.id}/qr`, label: "QRコード", icon: "📲" },
+      ]
+    : [];
+
+  // 店舗非依存のナビゲーション
+  const globalNavItems = [
+    { href: "/stores", label: "店舗設定", icon: "⚙️" },
+  ];
+
+  function isActive(href: string) {
+    return pathname === href || pathname.startsWith(href + "/");
   }
 
   const navContent = (
@@ -26,14 +41,71 @@ export function Sidebar() {
         <h1 className="text-xl font-bold text-indigo-400">QueueMaker</h1>
         <p className="text-xs text-gray-400 mt-1">管理画面</p>
       </div>
-      <nav className="flex-1 p-4 space-y-1">
-        {navItems.map((item) => (
+
+      {/* 店舗セレクター */}
+      <div className="px-4 py-3 border-b border-gray-700">
+        <p className="text-xs text-gray-400 mb-1.5">店舗</p>
+        {loading ? (
+          <div className="h-8 bg-gray-800 rounded animate-pulse" />
+        ) : stores.length === 0 ? (
+          <Link
+            href="/stores/new"
+            onClick={() => setOpen(false)}
+            className="block text-xs text-indigo-400 hover:text-indigo-300"
+          >
+            + 店舗を追加
+          </Link>
+        ) : (
+          <select
+            value={selectedStore?.id ?? ""}
+            onChange={(e) => {
+              setSelectedStoreId(e.target.value);
+              // ダッシュボードにいる場合は選択した店舗のフロアへ遷移
+              if (pathname === "/dashboard" || pathname === "/") {
+                router.push(`/stores/${e.target.value}`);
+              }
+            }}
+            className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-1.5 border border-gray-600 focus:outline-none focus:border-indigo-500"
+          >
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <nav className="flex-1 p-4 space-y-0.5 overflow-y-auto">
+        {/* 店舗固有メニュー */}
+        {storeNavItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             onClick={() => setOpen(false)}
             className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              pathname.startsWith(item.href)
+              isActive(item.href)
+                ? "bg-indigo-600 text-white"
+                : "text-gray-300 hover:bg-gray-800"
+            }`}
+          >
+            <span>{item.icon}</span>
+            {item.label}
+          </Link>
+        ))}
+
+        {storeNavItems.length > 0 && (
+          <div className="border-t border-gray-700 my-2" />
+        )}
+
+        {/* グローバルメニュー */}
+        {globalNavItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => setOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              isActive(item.href)
                 ? "bg-indigo-600 text-white"
                 : "text-gray-300 hover:bg-gray-800"
             }`}
@@ -43,6 +115,7 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
+
       <div className="p-4 border-t border-gray-700">
         <button
           onClick={handleSignOut}
@@ -68,6 +141,9 @@ export function Sidebar() {
           </svg>
         </button>
         <span className="text-indigo-400 font-bold text-lg">QueueMaker</span>
+        {selectedStore && (
+          <span className="text-gray-300 text-sm truncate">{selectedStore.name}</span>
+        )}
       </header>
 
       {/* ── Mobile drawer overlay ── */}
@@ -96,14 +172,59 @@ export function Sidebar() {
             </svg>
           </button>
         </div>
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => (
+
+        {/* 店舗セレクター（モバイル） */}
+        <div className="px-4 py-3 border-b border-gray-700">
+          <p className="text-xs text-gray-400 mb-1.5">店舗</p>
+          {!loading && stores.length > 0 && (
+            <select
+              value={selectedStore?.id ?? ""}
+              onChange={(e) => {
+                setSelectedStoreId(e.target.value);
+                setOpen(false);
+                if (pathname === "/dashboard" || pathname === "/") {
+                  router.push(`/stores/${e.target.value}`);
+                }
+              }}
+              className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-1.5 border border-gray-600 focus:outline-none focus:border-indigo-500"
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <nav className="flex-1 p-4 space-y-0.5 overflow-y-auto">
+          {storeNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname.startsWith(item.href)
+                isActive(item.href)
+                  ? "bg-indigo-600 text-white"
+                  : "text-gray-300 hover:bg-gray-800"
+              }`}
+            >
+              <span>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+
+          {storeNavItems.length > 0 && (
+            <div className="border-t border-gray-700 my-2" />
+          )}
+
+          {globalNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                isActive(item.href)
                   ? "bg-indigo-600 text-white"
                   : "text-gray-300 hover:bg-gray-800"
               }`}
@@ -113,6 +234,7 @@ export function Sidebar() {
             </Link>
           ))}
         </nav>
+
         <div className="p-4 border-t border-gray-700">
           <button
             onClick={handleSignOut}
