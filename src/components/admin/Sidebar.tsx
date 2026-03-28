@@ -36,10 +36,19 @@ export function Sidebar() {
 
   const storeNavItems = selectedStore
     ? [
-        { href: `/stores/${selectedStore.id}`, label: "フロア管理", icon: "🪑" },
+        {
+          href: `/stores/${selectedStore.id}`,
+          label: "フロア管理",
+          icon: "🪑",
+          // マップエディター(/map)も「フロア管理」配下として扱う
+          activePatterns: [
+            `/stores/${selectedStore.id}`,
+            `/stores/${selectedStore.id}/map`,
+          ],
+        },
         { href: `/queue/${selectedStore.id}`, label: "キュー管理", icon: "📋" },
-        { href: `/stores/${selectedStore.id}/qr`, label: "QRコード", icon: "📲" },
-        { href: `/stores/${selectedStore.id}/settings`, label: "店舗設定", icon: "⚙️" },
+        { href: `/stores/${selectedStore.id}/qr`, label: "QRコード", icon: "📲", exact: true },
+        { href: `/stores/${selectedStore.id}/settings`, label: "店舗設定", icon: "⚙️", exact: true },
       ]
     : [];
 
@@ -47,8 +56,16 @@ export function Sidebar() {
     { href: "/stores", label: "店舗一覧", icon: "🏪", exact: true },
   ];
 
-  function isActive(href: string, exact = false) {
-    if (exact) return pathname === href;
+  function isActive(
+    href: string,
+    options: { exact?: boolean; activePatterns?: string[] } = {}
+  ) {
+    if (options.activePatterns) {
+      return options.activePatterns.some(
+        (p) => pathname === p || pathname.startsWith(p + "/")
+      );
+    }
+    if (options.exact) return pathname === href;
     return pathname === href || pathname.startsWith(href + "/");
   }
 
@@ -59,14 +76,16 @@ export function Sidebar() {
     label,
     onClick,
     exact,
+    activePatterns,
   }: {
     href: string;
     icon: string;
     label: string;
     onClick?: () => void;
     exact?: boolean;
+    activePatterns?: string[];
   }) {
-    const active = isActive(href, exact);
+    const active = isActive(href, { exact, activePatterns });
     return (
       <Link
         href={href}
@@ -279,7 +298,7 @@ export function Sidebar() {
               href={item.href}
               onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive(item.href)
+                isActive(item.href, { exact: item.exact, activePatterns: item.activePatterns })
                   ? "bg-indigo-600 text-white"
                   : "text-gray-300 hover:bg-gray-800"
               }`}
@@ -295,7 +314,7 @@ export function Sidebar() {
               href={item.href}
               onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive(item.href, item.exact)
+                isActive(item.href, { exact: item.exact })
                   ? "bg-indigo-600 text-white"
                   : "text-gray-300 hover:bg-gray-800"
               }`}
