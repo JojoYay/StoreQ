@@ -44,10 +44,11 @@ export function Sidebar() {
     : [];
 
   const globalNavItems = [
-    { href: "/stores", label: "店舗一覧", icon: "🏪" },
+    { href: "/stores", label: "店舗一覧", icon: "🏪", exact: true },
   ];
 
-  function isActive(href: string) {
+  function isActive(href: string, exact = false) {
+    if (exact) return pathname === href;
     return pathname === href || pathname.startsWith(href + "/");
   }
 
@@ -57,13 +58,15 @@ export function Sidebar() {
     icon,
     label,
     onClick,
+    exact,
   }: {
     href: string;
     icon: string;
     label: string;
     onClick?: () => void;
+    exact?: boolean;
   }) {
-    const active = isActive(href);
+    const active = isActive(href, exact);
     return (
       <Link
         href={href}
@@ -292,7 +295,7 @@ export function Sidebar() {
               href={item.href}
               onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive(item.href)
+                isActive(item.href, item.exact)
                   ? "bg-indigo-600 text-white"
                   : "text-gray-300 hover:bg-gray-800"
               }`}
