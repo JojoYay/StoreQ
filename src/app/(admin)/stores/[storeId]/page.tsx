@@ -204,14 +204,25 @@ export default function StoreDetailPage() {
   const { store } = useStore(storeId);
   const avgDuration = store?.averageSeatingDuration ?? 60;
 
-  // 席を空席に解放
+  // 同じキューIDに紐づく全席を取得（複数席結合に対応）
+  function linkedSeats(seat: Seat): Seat[] {
+    if (!seat.currentQueueId) return [seat];
+    return seats.filter((s) => s.currentQueueId === seat.currentQueueId);
+  }
+
+  // 席を空席に解放（複数席結合時は全席まとめて解放）
   async function handleRelease(seat: Seat) {
-    await updateSeat(storeId, seat.id, {
-      status: "available",
-      currentQueueId: null,
-      occupiedSince: null,
-      estimatedFreeAt: null,
-    });
+    const targets = linkedSeats(seat);
+    await Promise.all(
+      targets.map((s) =>
+        updateSeat(storeId, s.id, {
+          status: "available",
+          currentQueueId: null,
+          occupiedSince: null,
+          estimatedFreeAt: null,
+        })
+      )
+    );
     // 案内済み席を空席に戻す場合はキューエントリをキャンセル
     if (seat.status === "reserved" && seat.currentQueueId) {
       await updateQueueEntry(seat.currentQueueId, {
@@ -224,10 +235,12 @@ export default function StoreDetailPage() {
   // 使用中に設定（案内済み席 → 着席確認 / 空席 → 清掃中等）
   async function handleOccupy(seat: Seat) {
     const now = Timestamp.now();
-    await updateSeat(storeId, seat.id, {
-      status: "occupied",
-      occupiedSince: now,
-    });
+    const targets = linkedSeats(seat);
+    await Promise.all(
+      targets.map((s) =>
+        updateSeat(storeId, s.id, { status: "occupied", occupiedSince: now })
+      )
+    );
     // 案内済み席の場合はキューエントリも着席済みに更新
     if (seat.currentQueueId) {
       await updateQueueEntry(seat.currentQueueId, {

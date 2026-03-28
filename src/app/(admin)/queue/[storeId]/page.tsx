@@ -25,13 +25,13 @@ export default function QueueManagePage() {
   }
 
   // モーダルで席を確定 → API呼び出し（FCM通知含む）
-  async function handleAssignConfirm(seatId: string) {
+  async function handleAssignConfirm(seatIds: string[]) {
     if (!modalEntry) return;
     try {
       const res = await fetch("/api/seats/assign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeId, queueId: modalEntry.id, seatId }),
+        body: JSON.stringify({ storeId, queueId: modalEntry.id, seatIds }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -47,17 +47,15 @@ export default function QueueManagePage() {
   // 案内済 → 着席確認（管理者がお客様の着席を目視確認後）
   async function handleConfirmSeated(entry: QueueEntry) {
     try {
-      await updateQueueEntry(entry.id, {
-        status: "seated",
-        seatedAt: Timestamp.now(),
-      });
-      if (entry.assignedSeatId) {
-        await updateSeat(storeId, entry.assignedSeatId, {
-          status: "occupied",
-          occupiedSince: Timestamp.now(),
-          currentQueueId: entry.id,
-        });
-      }
+      const now = Timestamp.now();
+      await updateQueueEntry(entry.id, { status: "seated", seatedAt: now });
+      // 複数席に対応: assignedSeatIds があればそちらを優先
+      const seatIds = entry.assignedSeatIds ?? (entry.assignedSeatId ? [entry.assignedSeatId] : []);
+      await Promise.all(
+        seatIds.map((id) =>
+          updateSeat(storeId, id, { status: "occupied", occupiedSince: now, currentQueueId: entry.id })
+        )
+      );
     } catch {
       alert("着席確認の更新に失敗しました");
     }
@@ -66,16 +64,11 @@ export default function QueueManagePage() {
   // キャンセル
   async function handleCancel(entry: QueueEntry) {
     if (!confirm(`${entry.customerName} さんをキャンセルしますか？`)) return;
-    await updateQueueEntry(entry.id, {
-      status: "cancelled",
-      cancelledAt: Timestamp.now(),
-    });
-    if (entry.assignedSeatId) {
-      await updateSeat(storeId, entry.assignedSeatId, {
-        status: "available",
-        currentQueueId: null,
-      });
-    }
+    await updateQueueEntry(entry.id, { status: "cancelled", cancelledAt: Timestamp.now() });
+    const seatIds = entry.assignedSeatIds ?? (entry.assignedSeatId ? [entry.assignedSeatId] : []);
+    await Promise.all(
+      seatIds.map((id) => updateSeat(storeId, id, { status: "available", currentQueueId: null }))
+    );
   }
 
   const activeQueue = queue.filter((q) => q.status === "waiting" || q.status === "notified");

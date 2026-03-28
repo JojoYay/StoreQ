@@ -52,6 +52,7 @@ export interface QueueEntry {
   fcmToken: string | null;
   status: "waiting" | "notified" | "seated" | "cancelled" | "expired";
   assignedSeatId: string | null;
+  assignedSeatIds: string[] | null;   // 複数席結合時は全席IDを保持
   assignedSeatLabel: string | null;
   position: number;
   notifiedAt: Timestamp | null;
@@ -74,4 +75,4 @@ export interface SeatAssignmentResult {
   score: number;
 }
 
-export type SeatTool = "select" | "addTable" | "addBar" | "addBooth" | "merge";
+export type SeatTool = "select" | "addTable" | "addBar" | "addBooth";

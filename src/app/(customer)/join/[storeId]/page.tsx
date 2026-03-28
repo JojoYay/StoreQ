@@ -35,6 +35,7 @@ export default function JoinPage() {
       fcmToken: null,
       status: "waiting",
       assignedSeatId: null,
+      assignedSeatIds: null,
       assignedSeatLabel: null,
       position: queueLength + 1,
       notifiedAt: null,

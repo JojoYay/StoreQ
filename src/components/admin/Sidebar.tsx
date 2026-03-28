@@ -23,6 +23,7 @@ export function Sidebar() {
         { href: `/stores/${selectedStore.id}`, label: "フロア管理", icon: "🪑" },
         { href: `/queue/${selectedStore.id}`, label: "キュー管理", icon: "📋" },
         { href: `/stores/${selectedStore.id}/qr`, label: "QRコード", icon: "📲" },
+        { href: `/stores/${selectedStore.id}/settings`, label: "店舗設定", icon: "⚙️" },
       ]
     : [];
 
