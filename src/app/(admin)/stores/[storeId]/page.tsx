@@ -1,5 +1,4 @@
 "use client";
-import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useSeats } from "@/lib/hooks/useSeats";
@@ -47,40 +46,41 @@ export default function StoreDetailPage() {
 
   if (seatsLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full py-20">
         <div className="animate-spin h-8 w-8 border-b-2 border-indigo-600 rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Link href="/stores" className="text-gray-400 hover:text-gray-600 text-sm">
-            ← 店舗一覧
-          </Link>
+    <div className="p-4 sm:p-6 lg:p-8">
+      {/* Header */}
+      <div className="mb-5">
+        <Link href="/stores" className="text-gray-400 hover:text-gray-600 text-sm">
+          ← 店舗一覧
+        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
           <h1 className="text-xl font-bold">フロア管理</h1>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            href={`/stores/${storeId}/map`}
-            className="text-sm px-3 py-1.5 bg-gray-100 rounded-lg hover:bg-gray-200"
-          >
-            マップ編集
-          </Link>
-          <Link
-            href={`/queue/${storeId}`}
-            className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            キュー管理
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/stores/${storeId}/map`}
+              className="text-sm px-3 py-1.5 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              マップ編集
+            </Link>
+            <Link
+              href={`/queue/${storeId}`}
+              className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              キュー管理
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Stats */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-4">
           <h2 className="font-semibold text-sm text-gray-700">状況</h2>
           <OccupancyMeter
             current={occupied.length}
@@ -117,7 +117,7 @@ export default function StoreDetailPage() {
                 <button
                   key={seat.id}
                   onClick={() => toggleSeatStatus(seat)}
-                  className="bg-white rounded-xl border border-gray-200 p-4 text-left hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 text-left hover:shadow-md transition-shadow"
                 >
                   <div
                     className={`w-3 h-3 rounded-full mb-2 ${STATUS_COLORS[seat.status]}`}

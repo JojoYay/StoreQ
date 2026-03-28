@@ -39,19 +39,22 @@ export default function QueueManagePage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="p-4 sm:p-6 lg:p-8">
+      {/* Header */}
+      <div className="mb-5">
         <Link href={`/stores/${storeId}`} className="text-gray-400 hover:text-gray-600 text-sm">
           ← フロア管理
         </Link>
-        <h1 className="text-xl font-bold">キュー管理</h1>
-        <div className="flex gap-3 ml-auto text-sm">
-          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-            空席 {available.length}
-          </span>
-          <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium">
-            待ち {queue.filter((q) => q.status === "waiting").length} 組
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
+          <h1 className="text-xl font-bold">キュー管理</h1>
+          <div className="flex gap-2 text-sm">
+            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+              空席 {available.length}
+            </span>
+            <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium">
+              待ち {queue.filter((q) => q.status === "waiting").length} 組
+            </span>
+          </div>
         </div>
       </div>
 

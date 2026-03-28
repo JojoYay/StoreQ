@@ -36,8 +36,8 @@ export default function NewStorePage() {
   }
 
   return (
-    <div className="p-8 max-w-xl">
-      <h1 className="text-2xl font-bold mb-8">新しい店舗を作成</h1>
+    <div className="p-4 sm:p-8 max-w-xl">
+      <h1 className="text-xl sm:text-2xl font-bold mb-6 sm:mb-8">新しい店舗を作成</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
