@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSeats } from "@/lib/hooks/useSeats";
 import { useQueue } from "@/lib/hooks/useQueue";
 import { useStore } from "@/lib/hooks/useStore";
-import { updateSeat } from "@/lib/firebase/firestore";
+import { updateSeat, updateQueueEntry } from "@/lib/firebase/firestore";
 import { OccupancyMeter } from "@/components/admin/OccupancyMeter";
 import { Timestamp } from "firebase/firestore";
 import type { Seat } from "@/lib/types";
@@ -124,9 +124,28 @@ function SeatCard({
             案内済
           </span>
         </div>
-        <p className="text-xs text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2">
-          お客様がまもなく着席されます
-        </p>
+        {/* 案内からの経過時間 */}
+        {elapsed ? (
+          <div className="rounded-lg px-3 py-2 bg-yellow-50">
+            <p className="text-xs text-yellow-600">案内から</p>
+            <p className="text-base font-bold tabular-nums text-yellow-700">{elapsed}</p>
+            <p className="text-xs text-yellow-500 mt-0.5">
+              着席されない場合はキャンセルしてください
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2">
+            お客様がまもなく着席されます
+          </p>
+        )}
+
+        {/* 使用中にする（着席確認） */}
+        <button
+          onClick={() => onOccupy(seat)}
+          className="w-full text-xs bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium"
+        >
+          使用中にする
+        </button>
         {/* キャンセル等で空席に戻す場合 */}
         <button
           onClick={() => onRelease(seat)}
@@ -193,14 +212,29 @@ export default function StoreDetailPage() {
       occupiedSince: null,
       estimatedFreeAt: null,
     });
+    // 案内済み席を空席に戻す場合はキューエントリをキャンセル
+    if (seat.status === "reserved" && seat.currentQueueId) {
+      await updateQueueEntry(seat.currentQueueId, {
+        status: "cancelled",
+        cancelledAt: Timestamp.now(),
+      });
+    }
   }
 
-  // 手動で使用中に設定（清掃中・メンテナンス等）
+  // 使用中に設定（案内済み席 → 着席確認 / 空席 → 清掃中等）
   async function handleOccupy(seat: Seat) {
+    const now = Timestamp.now();
     await updateSeat(storeId, seat.id, {
       status: "occupied",
-      occupiedSince: Timestamp.now(),
+      occupiedSince: now,
     });
+    // 案内済み席の場合はキューエントリも着席済みに更新
+    if (seat.currentQueueId) {
+      await updateQueueEntry(seat.currentQueueId, {
+        status: "seated",
+        seatedAt: now,
+      });
+    }
   }
 
   if (seatsLoading) {

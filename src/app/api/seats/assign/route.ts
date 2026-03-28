@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     batch.update(seatRef, {
       status: "reserved",
       currentQueueId: queueId,
+      occupiedSince: now,   // 案内送信時刻を記録（経過時間表示に使用）
     });
 
     await batch.commit();
