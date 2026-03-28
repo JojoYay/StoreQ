@@ -23,34 +23,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     let cleanup: (() => void) | undefined;
 
     async function setup() {
-      // サービスワーカー登録 + Firebase設定を送信
-      if ("serviceWorker" in navigator) {
-        try {
-          const reg = await navigator.serviceWorker.register(
-            "/firebase-messaging-sw.js"
-          );
-          const config = {
-            apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-            authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-            storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-            messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-            appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-          };
-          const sw = reg.installing ?? reg.waiting ?? reg.active;
-          sw?.postMessage({ type: "FIREBASE_CONFIG", config });
-        } catch {
-          // SW登録失敗は非致命的
-        }
-      }
-
-      // フォアグラウンドメッセージ受信
+      // フォアグラウンドメッセージ受信リスナー
+      // （アプリが前面にある状態でプッシュを受信したとき）
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
 
       const { onMessage } = await import("firebase/messaging");
       cleanup = onMessage(messaging, (payload) => {
         setForegroundMessage(payload);
+
+        // フォアグラウンドでは SW が通知を出さないため手動で表示
+        if (Notification.permission === "granted") {
+          const { title, body } = payload.notification ?? {};
+          const statusUrl = (payload.data as Record<string, string>)?.statusUrl ?? "/";
+          new Notification(title ?? "QueueMaker", {
+            body: body ?? "",
+            icon: "/icons/icon-192.png",
+            data: { url: statusUrl },
+          });
+        }
       });
     }
 
