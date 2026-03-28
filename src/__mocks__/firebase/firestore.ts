@@ -28,6 +28,14 @@ export class Timestamp {
   toDate(): Date {
     return new Date(this.toMillis());
   }
+
+  isEqual(other: Timestamp): boolean {
+    return this.seconds === other.seconds && this.nanoseconds === other.nanoseconds;
+  }
+
+  toJSON() {
+    return { seconds: this.seconds, nanoseconds: this.nanoseconds };
+  }
 }
 
 // Firestore CRUD 関数は全て jest.fn() で差し替え可能にする

@@ -20,15 +20,11 @@ export function MapEditor({ storeId, initialSeats }: MapEditorProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    setSeats(initialSeats);
-  }, [initialSeats]);
+  useEffect(() => { setSeats(initialSeats); }, [initialSeats]);
 
   const selectedSeat = seats.find((s) => s.id === selectedSeatId) ?? null;
 
-  function handleSeatAdd(
-    seatData: Omit<Seat, "createdAt" | "occupiedSince" | "estimatedFreeAt">
-  ) {
+  function handleSeatAdd(seatData: Omit<Seat, "createdAt" | "occupiedSince" | "estimatedFreeAt">) {
     const now = Timestamp.now();
     const newSeat: Seat = {
       ...seatData,
@@ -43,15 +39,15 @@ export function MapEditor({ storeId, initialSeats }: MapEditorProps) {
   }
 
   function handleSeatMove(id: string, position: { x: number; y: number }) {
-    setSeats((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, position } : s))
-    );
+    setSeats((prev) => prev.map((s) => (s.id === id ? { ...s, position } : s)));
+  }
+
+  function handleSeatResize(id: string, size: { width: number; height: number }) {
+    setSeats((prev) => prev.map((s) => (s.id === id ? { ...s, size } : s)));
   }
 
   function handleSeatUpdate(id: string, updates: Partial<Seat>) {
-    setSeats((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
-    );
+    setSeats((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
   }
 
   function handleSeatDelete(id: string) {
@@ -74,32 +70,43 @@ export function MapEditor({ storeId, initialSeats }: MapEditorProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* ツールバー */}
       <SeatToolbar
         activeTool={activeTool}
         onToolChange={setActiveTool}
         onSave={handleSave}
         saving={saving}
       />
+
       {saved && (
         <div className="bg-green-100 text-green-700 text-sm text-center py-1.5">
-          保存しました
+          保存しました ✓
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 p-4 overflow-auto bg-gray-100">
-          <MapCanvas
-            seats={seats}
-            activeTool={activeTool}
-            selectedSeatId={selectedSeatId}
-            onSeatAdd={handleSeatAdd}
-            onSeatMove={handleSeatMove}
-            onSeatSelect={setSelectedSeatId}
-            onSeatDoubleClick={(id) => {
-              setSelectedSeatId(id);
-              setActiveTool("select");
-            }}
-          />
-          <div className="mt-3 flex gap-4 text-xs text-gray-500">
+
+      {/* メインエリア: モバイルは縦積み、PC は横並び */}
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+
+        {/* キャンバス */}
+        <div className="flex-1 p-3 sm:p-4 overflow-auto bg-gray-100 min-h-0">
+          <div className="overflow-x-auto">
+            <MapCanvas
+              seats={seats}
+              activeTool={activeTool}
+              selectedSeatId={selectedSeatId}
+              onSeatAdd={handleSeatAdd}
+              onSeatMove={handleSeatMove}
+              onSeatResize={handleSeatResize}
+              onSeatSelect={setSelectedSeatId}
+              onSeatDoubleClick={(id) => {
+                setSelectedSeatId(id);
+                setActiveTool("select");
+              }}
+            />
+          </div>
+
+          {/* 凡例 */}
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
             {[
               { color: "#22c55e", label: "空席" },
               { color: "#ef4444", label: "使用中" },
@@ -107,15 +114,19 @@ export function MapEditor({ storeId, initialSeats }: MapEditorProps) {
               { color: "#9ca3af", label: "利用不可" },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-1">
-                <div
-                  className="w-3 h-3 rounded"
-                  style={{ backgroundColor: item.color }}
-                />
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }} />
                 {item.label}
               </div>
             ))}
           </div>
+
+          {/* 操作ヒント */}
+          <p className="mt-2 text-xs text-gray-400">
+            💡 PC: ドラッグで移動 / 右下■でリサイズ　モバイル: タップで選択 → 下のパネルでサイズ調整
+          </p>
         </div>
+
+        {/* プロパティパネル: 選択中のみ表示 */}
         {selectedSeat && (
           <SeatProperties
             seat={selectedSeat}

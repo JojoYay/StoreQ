@@ -1,5 +1,5 @@
 "use client";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { joinFormSchema, type JoinFormData } from "@/lib/utils/validation";
 
@@ -14,7 +14,8 @@ export function JoinForm({ onSubmit, maxCapacity }: JoinFormProps) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<JoinFormData>({
-    resolver: zodResolver(joinFormSchema),
+    // z.coerce.number() により input 型が unknown になるため明示的にキャスト
+    resolver: zodResolver(joinFormSchema) as Resolver<JoinFormData>,
     defaultValues: { partySize: 1 },
   });
 
