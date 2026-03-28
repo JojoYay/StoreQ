@@ -18,6 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
+      <head />
       <body className="antialiased bg-gray-50 text-gray-900">
         <AuthProvider>
           <NotificationProvider>{children}</NotificationProvider>
