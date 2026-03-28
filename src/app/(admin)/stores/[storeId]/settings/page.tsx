@@ -45,7 +45,7 @@ export default function StoreSettingsPage() {
   }
 
   return (
-    <div className="p-8 max-w-xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-xl">
       <h1 className="text-2xl font-bold mb-8">店舗設定</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

@@ -70,7 +70,7 @@ function SeatCard({
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
-              <p className="font-semibold text-sm">{seat.label}</p>
+              <p className="font-semibold text-sm truncate min-w-0">{seat.label}</p>
             </div>
             <p className="text-xs text-gray-400">{seat.capacity}名席</p>
           </div>
@@ -83,7 +83,7 @@ function SeatCard({
         {elapsed && (
           <div className={`rounded-lg px-3 py-2 ${isLong ? "bg-orange-50" : "bg-gray-50"}`}>
             <p className="text-xs text-gray-400">着席から</p>
-            <p className={`text-base font-bold tabular-nums ${elapsedColor}`}>
+            <p className={`text-base font-bold tabular-nums whitespace-nowrap ${elapsedColor}`}>
               {elapsed}
               {elapsedMins >= threshold2 && (
                 <span className="text-xs font-normal ml-1">⚠️ 超過</span>
@@ -116,7 +116,7 @@ function SeatCard({
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" />
-              <p className="font-semibold text-sm">{seat.label}</p>
+              <p className="font-semibold text-sm truncate min-w-0">{seat.label}</p>
             </div>
             <p className="text-xs text-gray-400">{seat.capacity}名席</p>
           </div>
@@ -164,7 +164,7 @@ function SeatCard({
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <div className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0" />
-              <p className="font-semibold text-sm">{seat.label}</p>
+              <p className="font-semibold text-sm truncate min-w-0">{seat.label}</p>
             </div>
             <p className="text-xs text-gray-400">{seat.capacity}名席</p>
           </div>
@@ -356,13 +356,19 @@ export default function StoreDetailPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
               {seats
-                // 使用中 → 案内済 → 空席 → 利用不可 の順に表示
+                // ①ステータス順 ②使用時間の長い順（occupiedSince昇順） ③席名の自然順
                 .slice()
                 .sort((a, b) => {
-                  const order = { occupied: 0, reserved: 1, available: 2, unavailable: 3 };
-                  return order[a.status] - order[b.status];
+                  const statusOrder = { occupied: 0, reserved: 1, available: 2, unavailable: 3 };
+                  if (statusOrder[a.status] !== statusOrder[b.status]) {
+                    return statusOrder[a.status] - statusOrder[b.status];
+                  }
+                  const aTime = a.occupiedSince?.toMillis() ?? Infinity;
+                  const bTime = b.occupiedSince?.toMillis() ?? Infinity;
+                  if (aTime !== bTime) return aTime - bTime;
+                  return a.label.localeCompare(b.label, "ja", { numeric: true });
                 })
                 .map((seat) => (
                   <SeatCard
