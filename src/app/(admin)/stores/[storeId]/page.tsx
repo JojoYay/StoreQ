@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useSeats } from "@/lib/hooks/useSeats";
@@ -8,40 +9,183 @@ import { OccupancyMeter } from "@/components/admin/OccupancyMeter";
 import { Timestamp } from "firebase/firestore";
 import type { Seat } from "@/lib/types";
 
-const STATUS_COLORS: Record<Seat["status"], string> = {
-  available: "bg-green-500",
-  occupied: "bg-red-500",
-  reserved: "bg-yellow-400",
-  unavailable: "bg-gray-300",
-};
+// ── 経過時間フック（30秒ごとに再計算） ──────────────
+function useElapsed(since: Timestamp | null): string {
+  const calc = () => {
+    if (!since) return "";
+    const mins = Math.floor((Date.now() - since.toMillis()) / 60000);
+    if (mins < 1) return "1分未満";
+    if (mins < 60) return `${mins}分`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}時間${m}分` : `${h}時間`;
+  };
 
-const STATUS_LABELS: Record<Seat["status"], string> = {
-  available: "空席",
-  occupied: "使用中",
-  reserved: "予約済",
-  unavailable: "利用不可",
-};
+  const [text, setText] = useState(calc);
 
+  useEffect(() => {
+    if (!since) return;
+    setText(calc());
+    const id = setInterval(() => setText(calc()), 30_000);
+    return () => clearInterval(id);
+  }, [since?.toMillis()]);
+
+  return text;
+}
+
+// ── 席カードコンポーネント ────────────────────────────
+function SeatCard({
+  seat,
+  storeId,
+  onRelease,
+  onOccupy,
+}: {
+  seat: Seat;
+  storeId: string;
+  onRelease: (seat: Seat) => void;
+  onOccupy: (seat: Seat) => void;
+}) {
+  const elapsed = useElapsed(seat.occupiedSince ?? null);
+
+  // 経過時間に応じた色（平均60分想定）
+  const elapsedMins = seat.occupiedSince
+    ? Math.floor((Date.now() - seat.occupiedSince.toMillis()) / 60000)
+    : 0;
+  const elapsedColor =
+    elapsedMins >= 90 ? "text-red-600" :
+    elapsedMins >= 60 ? "text-orange-500" :
+    "text-gray-500";
+
+  if (seat.status === "occupied") {
+    return (
+      <div className="bg-white rounded-xl border-2 border-red-200 p-3 sm:p-4 flex flex-col gap-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+              <p className="font-semibold text-sm">{seat.label}</p>
+            </div>
+            <p className="text-xs text-gray-400">{seat.capacity}名席</p>
+          </div>
+          <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium shrink-0">
+            使用中
+          </span>
+        </div>
+
+        {/* 経過時間 */}
+        {elapsed && (
+          <div className="bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-xs text-gray-400">着席から</p>
+            <p className={`text-base font-bold tabular-nums ${elapsedColor}`}>
+              {elapsed}
+              {elapsedMins >= 60 && (
+                <span className="text-xs font-normal ml-1 text-orange-400">長時間</span>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* 空席にするボタン */}
+        <button
+          onClick={() => onRelease(seat)}
+          className="w-full text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-medium mt-1"
+        >
+          空席にする
+        </button>
+      </div>
+    );
+  }
+
+  if (seat.status === "reserved") {
+    return (
+      <div className="bg-white rounded-xl border-2 border-yellow-300 p-3 sm:p-4 flex flex-col gap-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" />
+              <p className="font-semibold text-sm">{seat.label}</p>
+            </div>
+            <p className="text-xs text-gray-400">{seat.capacity}名席</p>
+          </div>
+          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+            案内済
+          </span>
+        </div>
+        <p className="text-xs text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2">
+          お客様がまもなく着席されます
+        </p>
+        {/* キャンセル等で空席に戻す場合 */}
+        <button
+          onClick={() => onRelease(seat)}
+          className="w-full text-xs border border-gray-200 text-gray-500 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          空席に戻す
+        </button>
+      </div>
+    );
+  }
+
+  if (seat.status === "available") {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 flex flex-col gap-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0" />
+              <p className="font-semibold text-sm">{seat.label}</p>
+            </div>
+            <p className="text-xs text-gray-400">{seat.capacity}名席</p>
+          </div>
+          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+            空席
+          </span>
+        </div>
+        {/* 手動で使用中にする（清掃中など） */}
+        <button
+          onClick={() => onOccupy(seat)}
+          className="w-full text-xs border border-gray-200 text-gray-400 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          使用中にする
+        </button>
+      </div>
+    );
+  }
+
+  // unavailable
+  return (
+    <div className="bg-gray-50 rounded-xl border border-gray-200 p-3 sm:p-4 opacity-60">
+      <div className="flex items-center gap-1.5 mb-1">
+        <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+        <p className="font-semibold text-sm text-gray-500">{seat.label}</p>
+      </div>
+      <p className="text-xs text-gray-400">{seat.capacity}名席</p>
+      <p className="text-xs text-gray-400 mt-1">利用不可</p>
+    </div>
+  );
+}
+
+// ── メインページ ──────────────────────────────────────
 export default function StoreDetailPage() {
   const { storeId } = useParams<{ storeId: string }>();
   const { seats, available, occupied, loading: seatsLoading } = useSeats(storeId);
   const { queue } = useQueue(storeId);
 
-  async function toggleSeatStatus(seat: Seat) {
-    if (seat.status === "occupied") {
-      await updateSeat(storeId, seat.id, {
-        status: "available",
-        currentQueueId: null,
-        occupiedSince: null,
-        estimatedFreeAt: null,
-      });
-    } else if (seat.status === "available") {
-      const now = Timestamp.now();
-      await updateSeat(storeId, seat.id, {
-        status: "occupied",
-        occupiedSince: now,
-      });
-    }
+  // 席を空席に解放
+  async function handleRelease(seat: Seat) {
+    await updateSeat(storeId, seat.id, {
+      status: "available",
+      currentQueueId: null,
+      occupiedSince: null,
+      estimatedFreeAt: null,
+    });
+  }
+
+  // 手動で使用中に設定（清掃中・メンテナンス等）
+  async function handleOccupy(seat: Seat) {
+    await updateSeat(storeId, seat.id, {
+      status: "occupied",
+      occupiedSince: Timestamp.now(),
+    });
   }
 
   if (seatsLoading) {
@@ -52,9 +196,17 @@ export default function StoreDetailPage() {
     );
   }
 
+  // 長時間着席中の席（60分超）
+  const longStayCount = seats.filter(
+    (s) =>
+      s.status === "occupied" &&
+      s.occupiedSince &&
+      Date.now() - s.occupiedSince.toMillis() > 60 * 60 * 1000
+  ).length;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      {/* Header */}
+      {/* ヘッダー */}
       <div className="mb-5">
         <Link href="/stores" className="text-gray-400 hover:text-gray-600 text-sm">
           ← 店舗一覧
@@ -79,13 +231,10 @@ export default function StoreDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* Stats */}
+        {/* サマリー */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-4">
           <h2 className="font-semibold text-sm text-gray-700">状況</h2>
-          <OccupancyMeter
-            current={occupied.length}
-            total={seats.length}
-          />
+          <OccupancyMeter current={occupied.length} total={seats.length} />
           <div className="grid grid-cols-2 gap-2 text-center">
             <div className="bg-green-50 rounded-lg p-3">
               <p className="text-2xl font-bold text-green-600">{available.length}</p>
@@ -96,11 +245,42 @@ export default function StoreDetailPage() {
               <p className="text-xs text-gray-500">待ち組数</p>
             </div>
           </div>
+
+          {/* 長時間アラート */}
+          {longStayCount > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
+              <p className="font-semibold">⚠️ 長時間着席</p>
+              <p className="mt-0.5">{longStayCount}席が60分を超えています</p>
+            </div>
+          )}
+
+          {/* 凡例 */}
+          <div className="space-y-1.5 text-xs text-gray-500 border-t pt-3">
+            <p className="font-medium text-gray-600 mb-2">席の解放について</p>
+            <p>お客様が退店したら<br />「<span className="text-green-600 font-medium">空席にする</span>」を押してください</p>
+            <p className="text-gray-400 mt-2">
+              ※ 自動解放はされません。スタッフが目視で確認して操作してください。
+            </p>
+          </div>
         </div>
 
-        {/* Seat Grid */}
+        {/* 席グリッド */}
         <div className="lg:col-span-3">
-          <h2 className="font-semibold text-sm text-gray-700 mb-3">席一覧</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm text-gray-700">席一覧</h2>
+            <div className="flex gap-2 text-xs text-gray-400">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />空席
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />案内済
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />使用中
+              </span>
+            </div>
+          </div>
+
           {seats.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
               <p>まだ席が登録されていません</p>
@@ -113,26 +293,22 @@ export default function StoreDetailPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {seats.map((seat) => (
-                <button
-                  key={seat.id}
-                  onClick={() => toggleSeatStatus(seat)}
-                  className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 text-left hover:shadow-md transition-shadow"
-                >
-                  <div
-                    className={`w-3 h-3 rounded-full mb-2 ${STATUS_COLORS[seat.status]}`}
+              {seats
+                // 使用中 → 案内済 → 空席 → 利用不可 の順に表示
+                .slice()
+                .sort((a, b) => {
+                  const order = { occupied: 0, reserved: 1, available: 2, unavailable: 3 };
+                  return order[a.status] - order[b.status];
+                })
+                .map((seat) => (
+                  <SeatCard
+                    key={seat.id}
+                    seat={seat}
+                    storeId={storeId}
+                    onRelease={handleRelease}
+                    onOccupy={handleOccupy}
                   />
-                  <p className="font-medium text-sm">{seat.label}</p>
-                  <p className="text-xs text-gray-400">{seat.capacity}名</p>
-                  <p className={`text-xs mt-1 font-medium ${
-                    seat.status === "available" ? "text-green-600" :
-                    seat.status === "occupied" ? "text-red-600" :
-                    seat.status === "reserved" ? "text-yellow-600" : "text-gray-400"
-                  }`}>
-                    {STATUS_LABELS[seat.status]}
-                  </p>
-                </button>
-              ))}
+                ))}
             </div>
           )}
         </div>
