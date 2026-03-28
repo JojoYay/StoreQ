@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,8 +16,10 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+// firebase/messaging は動的インポートでブラウザ環境のみロード
 export const getFirebaseMessaging = async () => {
   if (typeof window === "undefined") return null;
+  const { getMessaging, isSupported } = await import("firebase/messaging");
   const supported = await isSupported();
   if (!supported) return null;
   return getMessaging(app);

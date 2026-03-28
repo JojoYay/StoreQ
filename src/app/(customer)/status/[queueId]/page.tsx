@@ -40,7 +40,7 @@ export default function StatusPage() {
 
   // Show in-app notification toast
   useEffect(() => {
-    if (foregroundMessage?.notification?.title) {
+    if ((foregroundMessage as { notification?: { title?: string } })?.notification?.title) {
       // Browser notification is handled by NotificationContext
       // The status card will auto-update via Firestore subscription
     }

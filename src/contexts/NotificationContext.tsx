@@ -6,11 +6,10 @@ import {
   useState,
   ReactNode,
 } from "react";
-import { onMessage, MessagePayload } from "firebase/messaging";
 import { getFirebaseMessaging } from "@/lib/firebase/client";
 
 interface NotificationContextValue {
-  foregroundMessage: MessagePayload | null;
+  foregroundMessage: unknown;
 }
 
 const NotificationContext = createContext<NotificationContextValue>({
@@ -18,14 +17,13 @@ const NotificationContext = createContext<NotificationContextValue>({
 });
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [foregroundMessage, setForegroundMessage] =
-    useState<MessagePayload | null>(null);
+  const [foregroundMessage, setForegroundMessage] = useState<unknown>(null);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
     async function setup() {
-      // Register service worker and send Firebase config to it
+      // サービスワーカー登録 + Firebase設定を送信
       if ("serviceWorker" in navigator) {
         try {
           const reg = await navigator.serviceWorker.register(
@@ -36,21 +34,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
             projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
             storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-            messagingSenderId:
-              process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+            messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
             appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
           };
           const sw = reg.installing ?? reg.waiting ?? reg.active;
-          if (sw) {
-            sw.postMessage({ type: "FIREBASE_CONFIG", config });
-          }
+          sw?.postMessage({ type: "FIREBASE_CONFIG", config });
         } catch {
-          // SW registration failure is non-fatal
+          // SW登録失敗は非致命的
         }
       }
 
+      // フォアグラウンドメッセージ受信
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
+
+      const { onMessage } = await import("firebase/messaging");
       cleanup = onMessage(messaging, (payload) => {
         setForegroundMessage(payload);
       });
