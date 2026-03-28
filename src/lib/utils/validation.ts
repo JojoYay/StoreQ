@@ -6,7 +6,7 @@ export const joinFormSchema = z.object({
     .min(1, "お名前を入力してください")
     .max(50, "50文字以内で入力してください"),
   partySize: z
-    .number()
+    .coerce.number()
     .int()
     .min(1, "1名以上で入力してください")
     .max(20, "20名以下で入力してください"),
