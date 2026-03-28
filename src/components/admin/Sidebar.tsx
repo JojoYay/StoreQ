@@ -61,9 +61,9 @@ export function Sidebar() {
     options: { exact?: boolean; activePatterns?: string[] } = {}
   ) {
     if (options.activePatterns) {
-      return options.activePatterns.some(
-        (p) => pathname === p || pathname.startsWith(p + "/")
-      );
+      // activePatterns は完全一致のみ（startsWith は使わない）
+      // 例: ["/stores/xxx", "/stores/xxx/map"] → /qr や /settings にはマッチしない
+      return options.activePatterns.some((p) => pathname === p);
     }
     if (options.exact) return pathname === href;
     return pathname === href || pathname.startsWith(href + "/");
