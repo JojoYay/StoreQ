@@ -14,11 +14,14 @@ export async function loginAsAdmin(page: Page) {
     );
   }
   await page.goto("/login");
-  await page.getByLabel(/メールアドレス|email/i).fill(email);
-  await page.getByLabel(/パスワード|password/i).fill(password);
-  await page.getByRole("button", { name: /ログイン|sign in/i }).click();
+  await page.waitForLoadState("domcontentloaded");
+  // ログインフォームは label/input が for/id で紐付いていないため type で指定
+  await page.locator('input[type="email"]').waitFor({ state: "visible", timeout: 15000 });
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
+  await page.getByRole("button", { name: /ログイン/i }).click();
   // ログイン完了を待つ（ダッシュボード or フロア管理へリダイレクト）
-  await page.waitForURL(/\/(dashboard|stores)/, { timeout: 10_000 });
+  await page.waitForURL(/\/(dashboard|stores)/, { timeout: 15_000 });
 }
 
 /** テスト用店舗ID（環境変数から取得） */

@@ -54,16 +54,30 @@ const navCases = [
 test.describe("サイドバー ナビゲーション アクティブ状態", () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
+    // SelectedStoreContext が localStorage から storeId を読むため、
+    // goto の前に正しい storeId をセットしておく
+    await page.evaluate((storeId) => {
+      localStorage.setItem("selectedStoreId", storeId);
+    }, testStoreId());
   });
 
   for (const { name, path, expectedActive, expectedInactive } of navCases) {
     test(`${name} - 「${expectedActive}」だけがアクティブ`, async ({ page }) => {
       await page.goto(path());
-      await page.waitForLoadState("networkidle");
+      await page.waitForLoadState("domcontentloaded");
 
-      // デスクトップサイドバー（md:flex）内のナビリンクを対象にする
-      // アクティブ = bg-indigo-600 クラスを持つ <a> タグ
       const sidebar = page.locator("aside.hidden.md\\:flex");
+      // デスクトップサイドバーが表示されるまで待つ
+      // （Firestoreはリアルタイム接続でnetworkidleにならないため domcontentloaded を使用）
+      await sidebar.waitFor({ state: "visible", timeout: 15000 });
+
+      // SelectedStoreContext が Firestore から店舗を取得するまで待つ
+      // → サイドバーにフロア管理リンクが現れることで判定（店舗一覧ページは即表示なのでスキップ）
+      if (expectedActive !== "店舗一覧") {
+        await sidebar.locator(`a[href*="/stores/${testStoreId()}"], a[href*="/queue/${testStoreId()}"]`)
+          .first()
+          .waitFor({ state: "visible", timeout: 20000 });
+      }
 
       // ── アクティブになっているリンクを全件取得 ──
       const activeLinks = sidebar.locator("a.bg-indigo-600");
